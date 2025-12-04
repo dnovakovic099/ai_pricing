@@ -1,55 +1,20 @@
 import axios from 'axios'
 
-// Auto-login credentials (for development)
-const DEV_EMAIL = 'owner@hostiq.com'
-const DEV_PASSWORD = 'password123'
+// Pre-generated JWT token for owner@hostiq.com
+// This token is valid for API access - generate a new one if it expires
+const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhNzJlNzIxOS0xZTA5LTQ5MDItYWFmZS0wZDQ4ZjdlMjI5NzIiLCJpZCI6ImE3MmU3MjE5LTFlMDktNDkwMi1hYWZlLTBkNDhmN2UyMjk3MiIsInJvbGUiOiJPV05FUiIsImlhdCI6MTc2NDY3OTE0MCwiZXhwIjoxNzY3MjcxMTQwfQ.B2CJpLwZRqXxfiKdZQ2I8q5N-V7HTgM-M26YK_wHpYY'
 
 const api = axios.create({
   baseURL: '/api',
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${AUTH_TOKEN}`
   }
 })
 
-let authToken = localStorage.getItem('authToken') || ''
-
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  if (authToken) {
-    config.headers.Authorization = `Bearer ${authToken}`
-  }
-  return config
-})
-
-// Ensure we have a valid token before making requests
+// No auth needed - we use pre-generated token
 async function ensureAuth() {
-  // If we have a token, test it
-  if (authToken) {
-    try {
-      await axios.get('/api/pricing/training-data-stats', {
-        headers: { Authorization: `Bearer ${authToken}` }
-      })
-      return true // Token is valid
-    } catch (e) {
-      // Token is invalid, clear it
-      authToken = ''
-      localStorage.removeItem('authToken')
-    }
-  }
-  
-  // Login to get a new token
-  try {
-    const response = await axios.post('/api/auth/login', {
-      email: DEV_EMAIL,
-      password: DEV_PASSWORD
-    })
-    authToken = response.data.accessToken
-    localStorage.setItem('authToken', authToken)
-    return true
-  } catch (e) {
-    console.error('Auto-login failed:', e)
-    return false
-  }
+  return true
 }
 
 // ============ Pricing API ============
@@ -156,18 +121,6 @@ export async function retryAllListingErrors(listingId) {
   await ensureAuth()
   const { data } = await api.post(`/pricing/listings/${listingId}/retry-all`)
   return data
-}
-
-// ============ Auth helpers ============
-
-export function setAuthToken(token) {
-  authToken = token
-  localStorage.setItem('authToken', token)
-}
-
-export function clearAuthToken() {
-  authToken = ''
-  localStorage.removeItem('authToken')
 }
 
 export default api
