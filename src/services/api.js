@@ -1,20 +1,60 @@
 import axios from 'axios'
 
-// Pre-generated JWT token for owner@hostiq.com
-// This token is valid for API access - generate a new one if it expires
-const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhNzJlNzIxOS0xZTA5LTQ5MDItYWFmZS0wZDQ4ZjdlMjI5NzIiLCJpZCI6ImE3MmU3MjE5LTFlMDktNDkwMi1hYWZlLTBkNDhmN2UyMjk3MiIsInJvbGUiOiJPV05FUiIsImlhdCI6MTc2NDY3OTE0MCwiZXhwIjoxNzY3MjcxMTQwfQ.B2CJpLwZRqXxfiKdZQ2I8q5N-V7HTgM-M26YK_wHpYY'
+// Direct API URL - call backend directly (no proxy)
+const API_BASE_URL = 'https://roomify-server-production.up.railway.app/api'
+
+// Credentials for auto-login
+const DEV_EMAIL = 'owner@hostiq.com'
+const DEV_PASSWORD = 'password123'
+
+let authToken = localStorage.getItem('authToken') || ''
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${AUTH_TOKEN}`
+    'Content-Type': 'application/json'
   }
 })
 
-// No auth needed - we use pre-generated token
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  if (authToken) {
+    config.headers.Authorization = `Bearer ${authToken}`
+  }
+  return config
+})
+
+// Ensure we have a valid token before making requests
 async function ensureAuth() {
-  return true
+  // If we have a token, test it
+  if (authToken) {
+    try {
+      await axios.get(`${API_BASE_URL}/pricing/training-data-stats`, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      })
+      return true // Token is valid
+    } catch (e) {
+      // Token is invalid, clear it
+      authToken = ''
+      localStorage.removeItem('authToken')
+    }
+  }
+  
+  // Login to get a new token
+  try {
+    const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+      email: DEV_EMAIL,
+      password: DEV_PASSWORD
+    })
+    authToken = response.data.accessToken
+    localStorage.setItem('authToken', authToken)
+    // Update the api instance default headers
+    api.defaults.headers.Authorization = `Bearer ${authToken}`
+    return true
+  } catch (e) {
+    console.error('Auto-login failed:', e)
+    return false
+  }
 }
 
 // ============ Pricing API ============
