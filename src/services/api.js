@@ -1,11 +1,11 @@
 import axios from 'axios'
 
 // Direct API URL - call backend directly (no proxy)
-const API_BASE_URL = 'https://roomify-server-production.up.railway.app/api'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://roomify-server-production.up.railway.app/api'
 
-// Credentials for auto-login
-const DEV_EMAIL = 'owner@hostiq.com'
-const DEV_PASSWORD = 'password123'
+// Credentials from environment variables
+const AUTH_EMAIL = import.meta.env.VITE_AUTH_EMAIL
+const AUTH_PASSWORD = import.meta.env.VITE_AUTH_PASSWORD
 
 let authToken = localStorage.getItem('authToken') || ''
 
@@ -41,10 +41,15 @@ async function ensureAuth() {
   }
   
   // Login to get a new token
+  if (!AUTH_EMAIL || !AUTH_PASSWORD) {
+    console.error('Auth credentials not configured. Set VITE_AUTH_EMAIL and VITE_AUTH_PASSWORD.')
+    return false
+  }
+  
   try {
     const response = await axios.post(`${API_BASE_URL}/auth/login`, {
-      email: DEV_EMAIL,
-      password: DEV_PASSWORD
+      email: AUTH_EMAIL,
+      password: AUTH_PASSWORD
     })
     authToken = response.data.accessToken
     localStorage.setItem('authToken', authToken)
@@ -65,9 +70,12 @@ export async function getAudit() {
   return data
 }
 
-export async function getListingAudit(listingId) {
+export async function getListingAudit(listingId, date = null) {
   await ensureAuth()
-  const { data } = await api.get(`/pricing/audit/${listingId}`)
+  const url = date 
+    ? `/pricing/audit/${listingId}?date=${date}`
+    : `/pricing/audit/${listingId}`
+  const { data } = await api.get(url)
   return data
 }
 
@@ -95,9 +103,12 @@ export async function triggerNightlyCollection() {
   return data
 }
 
-export async function getMarketAnalysis() {
+export async function getMarketAnalysis(date = null) {
   await ensureAuth()
-  const { data } = await api.get('/pricing/market-analysis')
+  const url = date 
+    ? `/pricing/market-analysis?date=${date}`
+    : '/pricing/market-analysis'
+  const { data } = await api.get(url)
   return data
 }
 
@@ -160,6 +171,18 @@ export async function retryError(errorId) {
 export async function retryAllListingErrors(listingId) {
   await ensureAuth()
   const { data } = await api.post(`/pricing/listings/${listingId}/retry-all`)
+  return data
+}
+
+export async function getIncompleteListings() {
+  await ensureAuth()
+  const { data } = await api.get('/pricing/incomplete-listings')
+  return data
+}
+
+export async function fixIncompleteCalendars(listingIds = []) {
+  await ensureAuth()
+  const { data } = await api.post('/pricing/fix-calendars', { listingIds })
   return data
 }
 

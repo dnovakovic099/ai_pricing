@@ -12,26 +12,38 @@ function ListingDetail() {
   const [activeTab, setActiveTab] = useState('chunks')
   const [expandedChunk, setExpandedChunk] = useState(null)
   const [expandedSuggestion, setExpandedSuggestion] = useState(null)
+  const [availableDates, setAvailableDates] = useState([])
+  const [selectedDate, setSelectedDate] = useState(null)
 
   useEffect(() => {
     // Reset all state when listing changes to prevent showing stale data
     setData(null)
     setExpandedChunk(null)
     setExpandedSuggestion(null)
+    setAvailableDates([])
+    setSelectedDate(null)
     setError(null)
     fetchData()
   }, [listingId])
 
-  async function fetchData() {
+  async function fetchData(date = null) {
     try {
       setLoading(true)
-      const response = await getListingAudit(listingId)
+      const response = await getListingAudit(listingId, date)
       setData(response)
+      setAvailableDates(response.availableDates || [])
+      if (response.selectedDate) setSelectedDate(response.selectedDate)
     } catch (err) {
       setError(err.response?.data?.error || err.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleDateChange = (e) => {
+    const newDate = e.target.value
+    setSelectedDate(newDate)
+    fetchData(newDate)
   }
 
   function formatDate(dateStr) {
@@ -192,9 +204,32 @@ function ListingDetail() {
             {/* CHUNKS & COMPETITORS TAB */}
             {activeTab === 'chunks' && (
               <div className="chunks-tab">
-                <div className="section-header">
-                  <h2>Price Analysis Chunks</h2>
-                  <p className="section-desc">Each chunk represents a date range with scraped competitor data</p>
+                <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h2>Price Analysis Chunks</h2>
+                    <p className="section-desc">Each chunk represents a date range with scraped competitor data</p>
+                  </div>
+                  {availableDates.length > 0 && (
+                    <div className="date-selector" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <label style={{ fontSize: '14px', color: '#8b949e' }}>Scrape Date:</label>
+                      <select 
+                        value={selectedDate || ''} 
+                        onChange={handleDateChange}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid #30363d',
+                          background: '#0d1117',
+                          color: '#c9d1d9',
+                          fontSize: '14px'
+                        }}
+                      >
+                        {availableDates.map(date => (
+                          <option key={date} value={date}>{formatDate(date)}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
                 
                 {listingData?.analyses?.length > 0 ? (

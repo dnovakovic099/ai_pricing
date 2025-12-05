@@ -6,7 +6,9 @@ import {
   getListingsWithIssues,
   resolveError,
   ignoreError,
-  retryError
+  retryError,
+  getIncompleteListings,
+  fixIncompleteCalendars
 } from '../services/api'
 import './Errors.css'
 
@@ -45,6 +47,8 @@ export default function Errors() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('pending')
   const [actionLoading, setActionLoading] = useState(null)
+  const [incompleteListings, setIncompleteListings] = useState([])
+  const [fixLoading, setFixLoading] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -53,19 +57,35 @@ export default function Errors() {
   async function loadData() {
     setLoading(true)
     try {
-      const [summaryRes, errorsRes, issuesRes] = await Promise.all([
+      const [summaryRes, errorsRes, issuesRes, incompleteRes] = await Promise.all([
         getErrorSummary(),
         getPendingErrors(),
-        getListingsWithIssues()
+        getListingsWithIssues(),
+        getIncompleteListings()
       ])
       
       setSummary(summaryRes)
       setPendingErrors(errorsRes.errors || [])
       setIssueListings(issuesRes.listings || [])
+      setIncompleteListings(incompleteRes.listings || [])
     } catch (error) {
       console.error('Failed to load error data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleFixCalendars() {
+    setFixLoading(true)
+    try {
+      await fixIncompleteCalendars()
+      alert('Started background jobs to fix missing calendars. Check back in a few minutes.')
+      await loadData()
+    } catch (error) {
+      console.error('Failed to start calendar fix:', error)
+      alert('Failed to start fix jobs')
+    } finally {
+      setFixLoading(false)
     }
   }
 
@@ -171,10 +191,55 @@ export default function Errors() {
         >
           Listings with Issues ({issueListings.length})
         </button>
+        <button 
+          className={`tab ${activeTab === 'incomplete' ? 'active' : ''}`}
+          onClick={() => setActiveTab('incomplete')}
+        >
+          Missing Calendars ({incompleteListings.length})
+        </button>
       </div>
 
       {/* Tab Content */}
       <div className="tab-content">
+        {activeTab === 'incomplete' && (
+          <div className="incomplete-list">
+            {incompleteListings.length > 0 ? (
+              <div className="fix-header">
+                <div className="fix-info">
+                  <h3>Found {incompleteListings.length} listings with missing calendar data</h3>
+                  <p>These listings have competitor data but are missing your calendar/pricing data.</p>
+                </div>
+                <button 
+                  className="fix-all-btn"
+                  onClick={handleFixCalendars}
+                  disabled={fixLoading}
+                >
+                  {fixLoading ? 'Starting Jobs...' : '🔧 Fix All Calendars'}
+                </button>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <span className="empty-icon">✅</span>
+                <p>No missing calendars found!</p>
+              </div>
+            )}
+
+            <div className="listings-grid">
+              {incompleteListings.map(listing => (
+                <div key={listing.id} className="listing-card">
+                  <h3>{listing.title}</h3>
+                  <a href={listing.airbnb_url} target="_blank" rel="noopener noreferrer" className="listing-link">
+                    View on Airbnb ↗
+                  </a>
+                  <div className="stats-row">
+                    <span className="stat">Analyzed Chunks: {listing.analysis_count}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'pending' && (
           <div className="errors-list">
             {pendingErrors.length === 0 ? (

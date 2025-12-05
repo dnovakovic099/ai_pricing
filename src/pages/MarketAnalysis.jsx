@@ -9,21 +9,31 @@ function MarketAnalysis() {
   const [error, setError] = useState(null)
   const [expandedListing, setExpandedListing] = useState(null)
   const [expandedChunk, setExpandedChunk] = useState({})
+  const [availableDates, setAvailableDates] = useState([])
+  const [selectedDate, setSelectedDate] = useState(null)
 
   useEffect(() => {
     fetchData()
   }, [])
 
-  async function fetchData() {
+  async function fetchData(date = null) {
     try {
       setLoading(true)
-      const response = await getMarketAnalysis()
+      const response = await getMarketAnalysis(date)
       setData(response)
+      setAvailableDates(response.availableDates || [])
+      if (response.selectedDate) setSelectedDate(response.selectedDate)
     } catch (err) {
       setError(err.response?.data?.error || err.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleDateChange = (e) => {
+    const newDate = e.target.value
+    setSelectedDate(newDate)
+    fetchData(newDate)
   }
 
   function formatDate(dateStr) {
@@ -106,9 +116,33 @@ function MarketAnalysis() {
       <header className="page-header">
         <div>
           <h1>📊 Market Analysis Reports</h1>
-          <p className="subtitle">
-            Nightly scraped competitor data • Last run: {formatDateTime(data?.lastRun)}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginTop: '8px' }}>
+            <p className="subtitle" style={{ margin: 0 }}>
+              Nightly scraped competitor data • Last run: {formatDateTime(data?.lastRun)}
+            </p>
+            {availableDates.length > 0 && (
+              <div className="date-selector" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ fontSize: '13px', color: '#8b949e' }}>View Date:</label>
+                <select 
+                  value={selectedDate || ''} 
+                  onChange={handleDateChange}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid #30363d',
+                    background: '#0d1117',
+                    color: '#c9d1d9',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {availableDates.map(date => (
+                    <option key={date} value={date}>{formatDate(date)}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
         </div>
         <Link to="/" className="btn btn-secondary">← Back to Overview</Link>
       </header>
@@ -200,22 +234,16 @@ function MarketAnalysis() {
                   <tr className="chunks-row">
                     <td colSpan="9">
                       <div className="chunks-container">
-                        {/* ADR Section - Always show */}
-                        <div className="adr-section">
-                          <div className="adr-header">
-                            <h4>💰 Average Daily Rate (ADR)</h4>
-                            {listing.adrSource === 'hostify' ? (
+                        {/* ADR Section - Only show if Hostify data exists */}
+                        {listing.adrSource === 'hostify' && listing.overallADR && (
+                          <div className="adr-section">
+                            <div className="adr-header">
+                              <h4>💰 Average Daily Rate (ADR)</h4>
                               <span className="adr-source">
-                                from Hostify bookings • {listing.reservationCount} reservations
+                                from PMS bookings • {listing.reservationCount} reservations
                               </span>
-                            ) : (
-                              <span className="adr-source no-data">
-                                No Hostify booking data linked
-                              </span>
-                            )}
-                          </div>
-                          
-                          {listing.adrSource === 'hostify' && listing.overallADR ? (
+                            </div>
+                            
                             <div className="adr-stats">
                               <div className="adr-overall">
                                 <span className="adr-label">Overall ADR</span>
@@ -241,13 +269,8 @@ function MarketAnalysis() {
                                 </div>
                               )}
                             </div>
-                          ) : (
-                            <div className="adr-empty">
-                              <p>To see ADR data, this listing needs to be linked to a Hostify property with booking history.</p>
-                              <span className="adr-hint">The Airbnb URL must match between the scraped listing and your PMS property.</span>
-                            </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         <div className="chunks-header">
                           <h4>📅 Date Chunks ({listing.chunks?.length || 0})</h4>

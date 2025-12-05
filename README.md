@@ -5,9 +5,11 @@ A real-time market analysis dashboard for vacation rental pricing optimization.
 ## Features
 
 - 📊 **Market Analysis** - View competitor pricing data across all your listings
-- 💰 **ADR Tracking** - Average Daily Rate by weekday from actual Hostify bookings
+- 💰 **ADR Tracking** - Average Daily Rate by weekday (enhanced with PMS booking data when available)
 - 🤖 **AI Recommendations** - Smart pricing suggestions based on market data
 - 📅 **Date Chunks** - Analyze available date ranges with competitor pricing
+
+> **Note:** Core pricing features work without any PMS integration! ADR tracking is enhanced when connected to your property management system.
 
 ## Tech Stack
 
@@ -42,10 +44,23 @@ npm run preview
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Server port | 3000 |
-| `API_URL` | Backend API URL | https://roomify-server-production.up.railway.app |
+Create a `.env` file in the project root:
+
+```bash
+# API Configuration
+VITE_API_URL=https://roomify-server-production.up.railway.app/api
+
+# Auth Credentials (required)
+VITE_AUTH_EMAIL=your-email@example.com
+VITE_AUTH_PASSWORD=your-password
+```
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `VITE_API_URL` | Backend API URL | No (has default) |
+| `VITE_AUTH_EMAIL` | Login email | **Yes** |
+| `VITE_AUTH_PASSWORD` | Login password | **Yes** |
+| `PORT` | Server port (production) | No (default: 3000) |
 
 ## Project Structure
 
