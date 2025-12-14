@@ -186,4 +186,24 @@ export async function fixIncompleteCalendars(listingIds = []) {
   return data
 }
 
+// ============ Data Status API (Public endpoints) ============
+
+export async function getDataStatus() {
+  // This is a public endpoint, no auth needed
+  const { data } = await axios.get(`${API_BASE_URL}/pricing/data-status`)
+  return data
+}
+
+export async function updateCalendarStatus() {
+  // This is a public endpoint, no auth needed
+  const { data } = await axios.post(`${API_BASE_URL}/pricing/update-calendar-status`)
+  return data
+}
+
+export async function rescrapeListings(limit = 5, status = 'PENDING') {
+  // This is a public endpoint, no auth needed
+  const { data } = await axios.post(`${API_BASE_URL}/pricing/rescrape-listings`, { limit, status })
+  return data
+}
+
 export default api

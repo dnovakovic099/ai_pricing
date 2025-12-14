@@ -8,7 +8,10 @@ import {
   ignoreError,
   retryError,
   getIncompleteListings,
-  fixIncompleteCalendars
+  fixIncompleteCalendars,
+  getDataStatus,
+  updateCalendarStatus,
+  rescrapeListings
 } from '../services/api'
 import './Errors.css'
 
@@ -45,10 +48,13 @@ export default function Errors() {
   const [pendingErrors, setPendingErrors] = useState([])
   const [issueListings, setIssueListings] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('pending')
+  const [activeTab, setActiveTab] = useState('status')
   const [actionLoading, setActionLoading] = useState(null)
   const [incompleteListings, setIncompleteListings] = useState([])
   const [fixLoading, setFixLoading] = useState(false)
+  const [dataStatus, setDataStatus] = useState(null)
+  const [rescrapeLoading, setRescrapeLoading] = useState(false)
+  const [rescrapeResults, setRescrapeResults] = useState([])
 
   useEffect(() => {
     loadData()
@@ -57,21 +63,52 @@ export default function Errors() {
   async function loadData() {
     setLoading(true)
     try {
-      const [summaryRes, errorsRes, issuesRes, incompleteRes] = await Promise.all([
-        getErrorSummary(),
-        getPendingErrors(),
-        getListingsWithIssues(),
-        getIncompleteListings()
+      const [summaryRes, errorsRes, issuesRes, incompleteRes, statusRes] = await Promise.all([
+        getErrorSummary().catch(() => null),
+        getPendingErrors().catch(() => ({ errors: [] })),
+        getListingsWithIssues().catch(() => ({ listings: [] })),
+        getIncompleteListings().catch(() => ({ listings: [] })),
+        getDataStatus().catch(() => null)
       ])
       
       setSummary(summaryRes)
-      setPendingErrors(errorsRes.errors || [])
-      setIssueListings(issuesRes.listings || [])
-      setIncompleteListings(incompleteRes.listings || [])
+      setPendingErrors(errorsRes?.errors || [])
+      setIssueListings(issuesRes?.listings || [])
+      setIncompleteListings(incompleteRes?.listings || [])
+      setDataStatus(statusRes)
     } catch (error) {
       console.error('Failed to load error data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleRescrape(status = 'PENDING', limit = 10) {
+    setRescrapeLoading(true)
+    setRescrapeResults([])
+    try {
+      const result = await rescrapeListings(limit, status)
+      setRescrapeResults(result.results || [])
+      // Refresh data status
+      const newStatus = await getDataStatus()
+      setDataStatus(newStatus)
+    } catch (error) {
+      console.error('Rescrape failed:', error)
+    } finally {
+      setRescrapeLoading(false)
+    }
+  }
+
+  async function handleUpdateStatus() {
+    setRescrapeLoading(true)
+    try {
+      await updateCalendarStatus()
+      const newStatus = await getDataStatus()
+      setDataStatus(newStatus)
+    } catch (error) {
+      console.error('Update status failed:', error)
+    } finally {
+      setRescrapeLoading(false)
     }
   }
 
@@ -180,6 +217,12 @@ export default function Errors() {
       {/* Tabs */}
       <div className="tabs">
         <button 
+          className={`tab ${activeTab === 'status' ? 'active' : ''}`}
+          onClick={() => setActiveTab('status')}
+        >
+          📊 Data Status
+        </button>
+        <button 
           className={`tab ${activeTab === 'pending' ? 'active' : ''}`}
           onClick={() => setActiveTab('pending')}
         >
@@ -201,6 +244,94 @@ export default function Errors() {
 
       {/* Tab Content */}
       <div className="tab-content">
+        {activeTab === 'status' && (
+          <div className="data-status-panel">
+            {dataStatus ? (
+              <>
+                <div className="status-cards">
+                  <div className="status-card">
+                    <h3>📋 Listings</h3>
+                    <div className="stat-value">{dataStatus.totalListings}</div>
+                    <div className="stat-label">Total</div>
+                  </div>
+                  <div className="status-card">
+                    <h3>📅 Calendar Data</h3>
+                    <div className="stat-value">{dataStatus.calendarStats?.listings_with_calendar || 0}</div>
+                    <div className="stat-label">Listings with calendar</div>
+                  </div>
+                  <div className="status-card warning">
+                    <h3>🚫 Fully Blocked</h3>
+                    <div className="stat-value">{dataStatus.calendarStats?.fullyBlockedListings || 0}</div>
+                    <div className="stat-label">No available dates</div>
+                  </div>
+                  <div className="status-card">
+                    <h3>📊 Total Days</h3>
+                    <div className="stat-value">{dataStatus.calendarStats?.total_days || 0}</div>
+                    <div className="stat-label">Calendar days collected</div>
+                  </div>
+                </div>
+
+                <div className="status-breakdown">
+                  <h3>Status Breakdown</h3>
+                  <div className="breakdown-list">
+                    {Object.entries(dataStatus.statusBreakdown || {}).map(([status, count]) => (
+                      <div key={status} className={`breakdown-item ${status.toLowerCase()}`}>
+                        <span className="status-name">{status}</span>
+                        <span className="status-count">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="actions-panel">
+                  <h3>Actions</h3>
+                  <div className="action-buttons">
+                    <button 
+                      onClick={() => handleRescrape('PENDING', 10)}
+                      disabled={rescrapeLoading}
+                      className="action-btn"
+                    >
+                      {rescrapeLoading ? 'Scraping...' : '🔄 Scrape 10 Pending'}
+                    </button>
+                    <button 
+                      onClick={() => handleRescrape('FULLY_BLOCKED', 5)}
+                      disabled={rescrapeLoading}
+                      className="action-btn"
+                    >
+                      {rescrapeLoading ? 'Scraping...' : '🔄 Re-check 5 Blocked'}
+                    </button>
+                    <button 
+                      onClick={handleUpdateStatus}
+                      disabled={rescrapeLoading}
+                      className="action-btn secondary"
+                    >
+                      📝 Update Status from Data
+                    </button>
+                  </div>
+                </div>
+
+                {rescrapeResults.length > 0 && (
+                  <div className="rescrape-results">
+                    <h3>Latest Scrape Results</h3>
+                    <div className="results-list">
+                      {rescrapeResults.map((r, i) => (
+                        <div key={i} className={`result-item ${r.status?.toLowerCase()}`}>
+                          <span className="result-title">{r.title?.substring(0, 40)}...</span>
+                          <span className={`result-status ${r.status === 'ACTIVE' ? 'success' : 'blocked'}`}>
+                            {r.status} {r.available !== undefined && `(${r.available} available)`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="loading">Loading data status...</div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'incomplete' && (
           <div className="incomplete-list">
             {incompleteListings.length > 0 ? (
